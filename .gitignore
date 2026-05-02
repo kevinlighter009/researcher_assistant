@@ -1,0 +1,12 @@
+# python
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+
+# user data and secrets
+data/
+.env
+config/local.yaml
