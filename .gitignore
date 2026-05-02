@@ -8,5 +8,6 @@ dist/
 
 # user data and secrets
 data/
+doc/papers/
 .env
 config/local.yaml
