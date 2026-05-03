@@ -1,0 +1,49 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg
+*.egg-info/
+build/
+dist/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+.hypothesis/
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+.python-version
+
+# --- Editor / OS ---
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# --- Secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Local config overrides ---
+config/local.yaml
+
+# --- Generated artifacts ---
+# The wiki is regenerated from doc/distilled/ on demand.
+data/
+# PDFs are large and may have copyright restrictions; they are not committed.
+# The arXiv URL is preserved in each distilled MD's YAML front-matter so the
+# corpus is reproducible from arXiv on a fresh clone.
+doc/papers/
+# Streamlit's runtime cache.
+.streamlit/cache/

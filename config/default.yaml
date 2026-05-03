@@ -1,0 +1,19 @@
+data_dir: ./data
+llm:
+  default_backend: anthropic   # or claude_code
+  anthropic:
+    model: claude-sonnet-4-5-20250929
+    max_tokens: 4096
+    temperature: 0.2
+  claude_code:
+    binary: claude
+seed_taxonomy:
+  - vla
+  - diffusion_decoder
+  - world_model
+  - e2e_planning
+  - perception
+  - datasets
+  - misc
+ingest:
+  max_full_md_chars: 240000   # ~60k tokens, summarization input cap

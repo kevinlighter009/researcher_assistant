@@ -1,0 +1,16 @@
+name: researcher_assistant
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      - anthropic>=0.34.0
+      - pymupdf>=1.24.0
+      - pydantic>=2.6
+      - pyyaml>=6.0
+      - python-dotenv>=1.0
+      - streamlit>=1.36
+      - pytest>=8.0
+      - pytest-mock>=3.12
+      - rank-bm25>=0.2.2

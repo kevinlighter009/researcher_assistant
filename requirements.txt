@@ -1,0 +1,24 @@
+# Researcher Assistant — pip requirements (mirrors environment.yml's pip section).
+#
+# Tested with Python 3.11. Conda is the recommended path; this file exists for
+# pip / venv users.
+
+# --- Core ---
+anthropic>=0.34.0
+pymupdf>=1.24.0
+pydantic>=2.6
+pyyaml>=6.0
+python-dotenv>=1.0
+
+# --- UI ---
+streamlit>=1.36
+# pandas is pulled in transitively by streamlit; listed explicitly because
+# Home.py uses it directly for the stats dashboard.
+pandas>=2.0
+
+# --- Search ---
+rank-bm25>=0.2.2
+
+# --- Tests ---
+pytest>=8.0
+pytest-mock>=3.12
