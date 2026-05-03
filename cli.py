@@ -6,6 +6,10 @@ import sys
 from pathlib import Path
 
 from lib.config import Config, load_config
+from lib.indexing.from_distilled import (
+    discover_distilled,
+    generate_wiki_from_distilled,
+)
 from lib.indexing.rebuild import rebuild_wiki
 from lib.indexing.writer import WikiPaths
 from lib.ingestion.fetchers.upload import upload_fetch
@@ -74,6 +78,23 @@ def cmd_rebuild_index(args, cfg: Config) -> int:
     return 0
 
 
+def cmd_wiki_from_distilled(args, cfg: Config) -> int:
+    distilled_dir = Path(args.distilled_dir)
+    out_dir = Path(args.out_dir) if args.out_dir else cfg.data_dir / "wiki"
+    papers = discover_distilled(distilled_dir)
+    if not papers:
+        print(f"no distilled MDs found under {distilled_dir}")
+        return 1
+    out = generate_wiki_from_distilled(
+        papers, out_dir, seed_taxonomy=cfg.seed_taxonomy,
+    )
+    print(f"wrote {out.paper_count} papers into {out_dir}")
+    print(f"  index:         {out.index_md}")
+    print(f"  categories:    {len(out.categories)} files in {out_dir}/categories/")
+    print(f"  architectures: {out.architectures_md}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="personal_library")
     p.add_argument("--backend", default=None,
@@ -92,6 +113,16 @@ def main(argv: list[str] | None = None) -> int:
     pr = sub.add_parser("rebuild-index",
                         help="regenerate wiki/ from papers/*/meta.json")
     pr.set_defaults(func=cmd_rebuild_index)
+
+    pw = sub.add_parser(
+        "wiki-from-distilled",
+        help="generate wiki/ from doc/distilled/<cat>/*.md (no LLM call)",
+    )
+    pw.add_argument("--distilled-dir", default="doc/distilled",
+                    help="root containing per-category distilled MDs")
+    pw.add_argument("--out-dir", default=None,
+                    help="output wiki dir; defaults to <data_dir>/wiki")
+    pw.set_defaults(func=cmd_wiki_from_distilled)
 
     args = p.parse_args(argv)
     cfg = load_config()
