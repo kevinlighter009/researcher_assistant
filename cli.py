@@ -20,7 +20,12 @@ from lib.ingestion.fetchers.upload import upload_fetch
 from lib.llm.base import LLMClient
 from lib.pipeline import ingest_pdf_and_index
 from lib.query.orchestrator import query_wiki
+from lib.search import SearchIndex
 from lib.storage import PaperStorage
+
+
+_DEFAULT_SEARCH_INDEX = Path("data/.search_index.json")
+_DEFAULT_SEARCH_ROOTS = (Path("data/wiki"), Path("doc/distilled"))
 
 
 def _make_llm_client(cfg: Config, backend: str | None) -> LLMClient:
@@ -167,6 +172,43 @@ def cmd_distill_run(args, cfg: Config) -> int:
     return 0
 
 
+def _build_search_index(out: Path) -> SearchIndex:
+    repo_root = Path.cwd()
+    roots = [repo_root / r for r in _DEFAULT_SEARCH_ROOTS]
+    idx = SearchIndex.build(roots, repo_root=repo_root)
+    idx.save(out)
+    return idx
+
+
+def cmd_search_index(args, cfg: Config) -> int:
+    out = Path(args.out) if args.out else _DEFAULT_SEARCH_INDEX
+    if args.rebuild or not out.exists():
+        idx = _build_search_index(out)
+        print(f"built search index: {len(idx.chunks)} chunks -> {out}")
+    else:
+        idx = SearchIndex.load(out)
+        print(f"loaded existing index: {len(idx.chunks)} chunks from {out}")
+    return 0
+
+
+def cmd_search(args, cfg: Config) -> int:
+    out = Path(args.index) if args.index else _DEFAULT_SEARCH_INDEX
+    if not out.exists():
+        idx = _build_search_index(out)
+        print(f"(built fresh index: {len(idx.chunks)} chunks)")
+    else:
+        idx = SearchIndex.load(out)
+    hits = idx.search(args.query, k=args.k)
+    if not hits:
+        print("no hits")
+        return 0
+    for h in hits:
+        heading = h.heading or "(preamble)"
+        print(f"[score {h.score:6.2f}] {h.file_path}  -- {heading}")
+        print(f"  {h.snippet}")
+    return 0
+
+
 def cmd_wiki_from_distilled(args, cfg: Config) -> int:
     distilled_dir = Path(args.distilled_dir)
     out_dir = Path(args.out_dir) if args.out_dir else cfg.data_dir / "wiki"
@@ -234,6 +276,23 @@ def main(argv: list[str] | None = None) -> int:
     pdcl.add_argument("--yes", action="store_true",
                       help="actually delete (otherwise dry-run)")
     pdcl.set_defaults(func=cmd_distill_clean)
+
+    psi = sub.add_parser(
+        "search-index",
+        help="build/rebuild BM25 search index over wiki + distilled MDs",
+    )
+    psi.add_argument("--rebuild", action="store_true",
+                     help="rebuild even if the index file exists")
+    psi.add_argument("--out", default=None,
+                     help=f"index output path (default {_DEFAULT_SEARCH_INDEX})")
+    psi.set_defaults(func=cmd_search_index)
+
+    ps = sub.add_parser("search", help="content-search the wiki corpus")
+    ps.add_argument("query")
+    ps.add_argument("--k", type=int, default=20, help="top-k hits (default 20)")
+    ps.add_argument("--index", default=None,
+                    help=f"index path (default {_DEFAULT_SEARCH_INDEX})")
+    ps.set_defaults(func=cmd_search)
 
     args = p.parse_args(argv)
     cfg = load_config()
