@@ -11,6 +11,7 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from lib.config import load_config  # noqa: E402
+from lib.notes.store import read_note, write_note  # noqa: E402
 from lib.search import SearchIndex  # noqa: E402
 
 
@@ -22,6 +23,7 @@ wiki_root = _REPO_ROOT / cfg.data_dir / "wiki" if not cfg.data_dir.is_absolute()
     else cfg.data_dir / "wiki"
 distilled_root = _REPO_ROOT / "doc" / "distilled"
 _INDEX_PATH = _REPO_ROOT / "data" / ".search_index.json"
+_NOTES_ROOT = _REPO_ROOT / "doc" / "notes"
 
 # ---- Build file list ----------------------------------------------------
 
@@ -88,6 +90,17 @@ if st.sidebar.button("Reindex", use_container_width=True):
     _build_index()
     st.sidebar.success("search index rebuilt")
 
+st.sidebar.divider()
+notes_mode = st.sidebar.checkbox(
+    "Notes mode",
+    value=st.session_state.get("notes_mode", False),
+    key="notes_mode",
+    help=(
+        "When enabled, a note editor appears below the rendered file. "
+        "Notes save to `doc/notes/` mirroring the source path."
+    ),
+)
+
 selected_path: Path | None = None
 
 if search and len(search.strip()) >= 2:
@@ -146,5 +159,56 @@ if selected_path and selected_path.exists():
     st.markdown(text)
     with st.expander("Raw"):
         st.code(text, language="markdown")
+
+    # ---- Notes panel ---------------------------------------------------
+    if notes_mode:
+        st.divider()
+        st.subheader("Notes")
+        existing, status = read_note(
+            selected_path, repo_root=_REPO_ROOT, notes_root=_NOTES_ROOT,
+        )
+        if status.exists:
+            st.caption(
+                f"`{status.path.relative_to(_REPO_ROOT)}` · "
+                f"last saved {status.last_modified} · {status.size_chars} chars"
+            )
+        else:
+            st.caption(
+                f"No notes yet. Will save to "
+                f"`{status.path.relative_to(_REPO_ROOT)}`."
+            )
+        # Use the source path string in the textarea key so each file gets
+        # its own draft state. Streamlit will preserve the in-memory value
+        # across reruns; Save flushes it to disk.
+        textarea_key = f"note_text::{selected_path}"
+        if textarea_key not in st.session_state:
+            st.session_state[textarea_key] = existing
+        new_content = st.text_area(
+            "Markdown",
+            value=st.session_state[textarea_key],
+            key=textarea_key,
+            height=240,
+            help=(
+                "Markdown supported. Empty content (after save) deletes the "
+                "note file."
+            ),
+        )
+        col_save, col_revert, _ = st.columns([1, 1, 4])
+        if col_save.button("Save", type="primary"):
+            new_status = write_note(
+                selected_path, new_content,
+                repo_root=_REPO_ROOT, notes_root=_NOTES_ROOT,
+            )
+            if new_status.exists:
+                st.success(
+                    f"Saved to `{new_status.path.relative_to(_REPO_ROOT)}` "
+                    f"({new_status.size_chars} chars)."
+                )
+            else:
+                st.success("Note deleted (was empty).")
+            st.rerun()
+        if col_revert.button("Revert"):
+            st.session_state[textarea_key] = existing
+            st.rerun()
 else:
     st.info("Pick a file from the sidebar.")
