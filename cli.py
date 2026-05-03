@@ -6,6 +6,10 @@ import sys
 from pathlib import Path
 
 from lib.config import Config, load_config
+from lib.distillation.sync import (
+    check_sync,
+    delete_orphan_distillations,
+)
 from lib.indexing.from_distilled import (
     discover_distilled,
     generate_wiki_from_distilled,
@@ -78,6 +82,91 @@ def cmd_rebuild_index(args, cfg: Config) -> int:
     return 0
 
 
+def _papers_root() -> Path:
+    return Path("doc/papers")
+
+
+def _distilled_root() -> Path:
+    return Path("doc/distilled")
+
+
+def cmd_distill_check(args, cfg: Config) -> int:
+    status = check_sync(_papers_root(), _distilled_root())
+    print(f"in sync:               {len(status.in_sync)}")
+    print(f"missing distillation:  {len(status.missing)}")
+    print(f"orphan distillation:   {len(status.orphans)}")
+    if status.missing:
+        print("\nmissing:")
+        for e in status.missing:
+            print(f"  - {e.category}/{e.stem}.pdf")
+    if status.orphans:
+        print("\norphans:")
+        for e in status.orphans:
+            print(f"  - {e.category}/{e.stem}.md")
+    return 0
+
+
+def cmd_distill_clean(args, cfg: Config) -> int:
+    status = check_sync(_papers_root(), _distilled_root())
+    if not status.orphans:
+        print("no orphans to clean")
+        return 0
+    if not args.yes:
+        print(f"would delete {len(status.orphans)} orphan(s); pass --yes to actually delete")
+        for e in status.orphans:
+            print(f"  - {e.md_path}")
+        return 0
+    removed = delete_orphan_distillations(status.orphans)
+    print(f"deleted {len(removed)} orphan distillation(s)")
+    for p in removed:
+        print(f"  - {p}")
+    return 0
+
+
+def cmd_distill_run(args, cfg: Config) -> int:
+    # api_distill is imported lazily so this command works even before the
+    # api_distill module fully lands. If it's missing the user gets a clear
+    # error pointing at the right thing.
+    try:
+        from lib.distillation.api_distill import distill_pdf_via_api
+    except ImportError as e:
+        print(f"distill-run requires lib.distillation.api_distill: {e}")
+        return 2
+
+    llm = _make_llm_client(cfg, args.backend)
+    status = check_sync(_papers_root(), _distilled_root())
+    targets = status.missing
+    if args.only:
+        only = set(args.only)
+        targets = [e for e in targets if f"{e.category}/{e.stem}" in only]
+    if not targets:
+        print("no missing distillations to run")
+        return 0
+    print(f"distilling {len(targets)} paper(s) using backend={args.backend or cfg.llm.default_backend}")
+    failures: list[tuple[str, str]] = []
+    for i, e in enumerate(targets, start=1):
+        out_path = _distilled_root() / e.category / f"{e.stem}.md"
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            res = distill_pdf_via_api(
+                pdf_path=e.pdf_path,
+                output_path=out_path,
+                llm=llm,
+                max_full_md_chars=cfg.ingest.max_full_md_chars,
+            )
+            print(f"[{i}/{len(targets)}] OK  {e.category}/{e.stem} -> "
+                  f"{res.paper_id} ({res.primary_category}, {res.word_count} words)")
+        except Exception as exc:  # pylint: disable=broad-except
+            failures.append((f"{e.category}/{e.stem}", str(exc)))
+            print(f"[{i}/{len(targets)}] FAIL {e.category}/{e.stem}: {exc}")
+    if failures:
+        print(f"\n{len(failures)} failure(s):")
+        for k, v in failures:
+            print(f"  - {k}: {v}")
+        return 1
+    return 0
+
+
 def cmd_wiki_from_distilled(args, cfg: Config) -> int:
     distilled_dir = Path(args.distilled_dir)
     out_dir = Path(args.out_dir) if args.out_dir else cfg.data_dir / "wiki"
@@ -123,6 +212,28 @@ def main(argv: list[str] | None = None) -> int:
     pw.add_argument("--out-dir", default=None,
                     help="output wiki dir; defaults to <data_dir>/wiki")
     pw.set_defaults(func=cmd_wiki_from_distilled)
+
+    pdc = sub.add_parser(
+        "distill-check",
+        help="diff doc/papers/ vs doc/distilled/; print missing+orphan",
+    )
+    pdc.set_defaults(func=cmd_distill_check)
+
+    pdr = sub.add_parser(
+        "distill-run",
+        help="run API-driven distillation for missing PDFs (requires API key)",
+    )
+    pdr.add_argument("--only", action="append", default=None,
+                     help="<category>/<stem> to limit to (repeatable)")
+    pdr.set_defaults(func=cmd_distill_run)
+
+    pdcl = sub.add_parser(
+        "distill-clean",
+        help="delete orphan distilled MDs (those without a matching PDF)",
+    )
+    pdcl.add_argument("--yes", action="store_true",
+                      help="actually delete (otherwise dry-run)")
+    pdcl.set_defaults(func=cmd_distill_clean)
 
     args = p.parse_args(argv)
     cfg = load_config()
