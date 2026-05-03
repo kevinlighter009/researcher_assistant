@@ -1,5 +1,9 @@
 # Researcher Assistant
 
+[![CI](https://github.com/kevinlighter009/researcher_assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/kevinlighter009/researcher_assistant/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
+
 A fully-local, LLM-maintained research-paper wiki — designed for one researcher
 working through a fast-moving literature (autonomous-driving papers in the
 seed corpus, but the architecture generalizes).
@@ -306,6 +310,20 @@ history:
 Subsequent commits added: paper download tooling, the three skills, the
 deterministic wiki generator, BM25 search, and the seven-page Streamlit
 UI. See `git log --oneline` for the full chronology.
+
+## Contributing
+
+Contributions are welcome. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the
+TDD discipline, module-boundary rules, commit-message conventions, and the
+recipe for adding a paper / skill / architecture tag.
+
+In short: tests must stay hermetic (no live network), the seven `lib/`
+modules' import boundaries are intentional, and every code-touching change
+follows the failing-test → run → implement → run → commit rhythm.
+
+## License
+
+[MIT](LICENSE) — © 2026 Kevin Lighter.
 
 ## Acknowledgements
 
