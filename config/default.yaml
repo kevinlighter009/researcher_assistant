@@ -13,6 +13,7 @@ seed_taxonomy:
   - world_model
   - e2e_planning
   - perception
+  - rl
   - datasets
   - misc
 ingest:
